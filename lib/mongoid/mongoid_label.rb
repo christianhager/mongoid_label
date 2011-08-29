@@ -33,6 +33,13 @@ module Mongoid
         class_options[label_field] = options
         self.label_options = class_options
         
+        #
+        # scopes
+        #
+        scope :"with_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);all_in("#{label_collection}.name" => names)}
+        scope :"without_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);not_in("#{label_collection}.name" => names)}
+        scope :"with_any_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);any_in("#{label_collection}.name" => names)}
+        
         # instance methods
         class_eval <<-END
           def #{label_field}=(s)

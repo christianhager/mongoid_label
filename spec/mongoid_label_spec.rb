@@ -116,7 +116,7 @@ describe Mongoid::LabelRegister do
      end
    end
    
-   context "getting weight from labels" do
+   context "getting weight from label register" do
      before(:each) do
        @m = M2.new(:register => Register.new)
      end
@@ -128,5 +128,30 @@ describe Mongoid::LabelRegister do
          ["clean", 1]
         ]
       end
+   end
+   
+   context "scope labels" do
+     before(:each) do
+       @register = Register.create
+       @m1 = M2.new(:register => @register, :labels => "bread, juice, sugar")
+       @m2 = M2.new(:register => @register, :labels => "bread, milk, tea")
+       @m3 = M2.new(:register => @register, :labels => "loaf, juice, sugar")
+      @m1.save; @m2.save; @m3.save!
+     end
+     
+     it "should find models labeled with a label" do
+       @register.models.with_labels("bread").should == [@m1, @m2]
+       @register.models.with_labels(["juice", "sugar"]).should == [@m1, @m3]
+       @register.models.with_labels(["juice", "sugar", "whatever"]).should == []
+     end
+     
+     it "should find models not labeled with a label" do
+       @register.models.without_labels("bread").should == [@m3]
+       @register.models.without_labels(["juice", "sugar"]).should == [@m2]
+     end
+     
+     it "should find models labeled with any label in" do
+       @register.models.with_any_labels(["bread", "whatever"]).should == [@m1, @m2]
+     end
    end
 end
