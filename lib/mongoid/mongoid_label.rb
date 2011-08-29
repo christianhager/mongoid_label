@@ -5,13 +5,8 @@ module Mongoid
     included do
       class_attribute :label_options
       self.label_options = {}
-      
-
       set_callback :save,     :after, :update_label_register
-#      set_callback :destroy,  :before, :store_referances
       set_callback :destroy,  :after, :decrement_register
-      
-
     end
     
     module ClassMethods
@@ -19,11 +14,8 @@ module Mongoid
         options = args.extract_options!
         label_field = (args.blank? ? :labels : args.shift).to_sym
         
-        label_collection = "#{label_field}_collection".to_sym
-
         field label_field, :type => String, :default => ""
-        embeds_many label_collection, :as => :labelable
-        
+        field :"#{label_field}_collection", :type => Array, :default => []
         options.reverse_merge!(
           :register_in => nil
         )
@@ -36,15 +28,25 @@ module Mongoid
         #
         # scopes
         #
-        scope :"with_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);all_in("#{label_collection}.name" => names)}
-        scope :"without_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);not_in("#{label_collection}.name" => names)}
-        scope :"with_any_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);any_in("#{label_collection}.name" => names)}
+        scope :"with_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);all_in(:"#{label_field}_collection" => names)}
+        scope :"without_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);not_in(:"#{label_field}_collection" => names)}
+        scope :"with_any_#{label_field}", lambda { |names| names = names.to_a unless names.is_a?(Array);any_in(:"#{label_field}_collection" => names)}
         
         # instance methods
         class_eval <<-END
           def #{label_field}=(s)
             super
-            set_labels_from_string(:#{label_field}, s)
+            arr = s.split(",").map(&:strip).uniq.compact
+            write_attribute(:#{label_field}, arr.join(","))
+            write_attribute(:#{label_field}_collection, arr)
+          end
+          
+          def remove_#{label_field}(labels)
+            _remove_labels(:#{label_field}, labels)
+          end
+          
+          def add_#{label_field}(labels)
+            _add_labels(:#{label_field}, labels)
           end
         END
       end
@@ -52,35 +54,26 @@ module Mongoid
     
     module InstanceMethods
       
+      def _add_labels(label_field, labels)
+        labels = labels.to_a unless labels.is_a?(Array)
+        puts "#{self.send(label_field).split(",").map(&:strip)} + #{labels.map(&:strip)} = #{(self.send(label_field).split(",").map(&:strip) + labels.map(&:strip)).uniq.compact.join(",")}"
+        new_label_str = (self.send(label_field).split(",").map(&:strip) + labels.map(&:strip)).uniq.compact.join(",")
+        self.send(:"#{label_field}=", new_label_str)
+      end
+      
+      def _remove_labels(label_field, labels)
+        labels = labels.to_a unless labels.is_a?(Array)
+        puts "#{self.send(label_field).split(",").map(&:strip)} - #{labels.map(&:strip)} = #{(self.send(label_field).split(",").map(&:strip) - labels.map(&:strip)).uniq.compact.join(",")}"
+        new_label_str = (self.send(label_field).split(",").map(&:strip) - labels.map(&:strip)).uniq.compact.join(",")
+        self.send(:"#{label_field}=", new_label_str)
+      end
+      
       def label_collection_from_field(field)
         self.send(:"#{field}_collection")
       end
       
       def set_labels_from_string(label_field, str)
-        label_strings = str.split(",").map(&:strip).uniq.compact
-        label_item_strings = label_collection_from_field(label_field).collect{|label_item| label_item.name}
-       
-        #
-        # delete those that have been removed
-        #
-        label_item_strings.each do |str|
-          delete_label_from_string(label_field, str) unless label_strings.include?(str)
-        end
         
-        #
-        # add new labels
-        #
-        label_strings.each do |str|
-          add_label_from_string(label_field, str) unless label_item_strings.include?(str)
-        end
-      end
-      
-      def delete_label_from_string(label_field, str)
-        label_collection_from_field(label_field).delete_if{|item| item.name == str}
-      end
-      
-      def add_label_from_string(label_field, str)
-        label_collection_from_field(label_field) << Mongoid::Label::Item.new(:name => str)
       end
       
       def label_contexts

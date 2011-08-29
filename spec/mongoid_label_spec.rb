@@ -32,19 +32,18 @@ describe Mongoid::Label do
     it "should set label documents from text field" do
       @m.labels = "car, blue, imported"
       @m.labels_collection.size.should == 3
-      @m.labels_collection.each{|ls| ls.should be_a(Mongoid::Label::Item)}
     end
     
     it "should add a new label to an exsisting collection" do
       @m.labels = "car, blue, imported"
-      @m.labels_collection[0].name.should == "car"
-      @m.labels_collection[1].name.should == "blue"
-      @m.labels_collection[2].name.should == "imported"
+      @m.labels_collection[0].should == "car"
+      @m.labels_collection[1].should == "blue"
+      @m.labels_collection[2].should == "imported"
       @m.labels = "car, blue, imported, sold"
-      @m.labels_collection[0].name.should == "car"
-      @m.labels_collection[1].name.should == "blue"
-      @m.labels_collection[2].name.should == "imported"
-      @m.labels_collection[3].name.should == "sold"
+      @m.labels_collection[0].should == "car"
+      @m.labels_collection[1].should == "blue"
+      @m.labels_collection[2].should == "imported"
+      @m.labels_collection[3].should == "sold"
     end
     
     it "should remove labels from collection that have been removed" do
@@ -52,24 +51,24 @@ describe Mongoid::Label do
       @m.labels_collection.size.should == 3
       @m.labels = "car, imported"
       @m.labels_collection.size.should == 2
-      @m.labels_collection[0].name.should == "car"
-      @m.labels_collection[1].name.should == "imported"
+      @m.labels_collection[0].should == "car"
+      @m.labels_collection[1].should == "imported"
     end
     
     it "should remove whitespace" do
       @m.labels = "car       , blue,     imported"
-      @m.labels_collection[0].name.should == "car"
-      @m.labels_collection[1].name.should == "blue"
-      @m.labels_collection[2].name.should == "imported"
+      @m.labels_collection[0].should == "car"
+      @m.labels_collection[1].should == "blue"
+      @m.labels_collection[2].should == "imported"
     end
     
     it "should work for named labels as well" do
       @m.system_labels = "traced, Out of Stock"
       @m.labels_collection.size.should == 0
       @m.system_labels_collection.size.should == 2
-      @m.system_labels_collection.each{|ls| ls.should be_a(Mongoid::Label::Item)}
-      @m.system_labels_collection[0].name.should == "traced"
-      @m.system_labels_collection[1].name.should == "Out of Stock"
+
+      @m.system_labels_collection[0].should == "traced"
+      @m.system_labels_collection[1].should == "Out of Stock"
     end
   end
 end
@@ -141,6 +140,7 @@ describe Mongoid::LabelRegister do
      
      it "should find models labeled with a label" do
        @register.models.with_labels("bread").should == [@m1, @m2]
+       p @register.models.with_labels(["juice", "sugar"])
        @register.models.with_labels(["juice", "sugar"]).should == [@m1, @m3]
        @register.models.with_labels(["juice", "sugar", "whatever"]).should == []
      end
@@ -151,7 +151,71 @@ describe Mongoid::LabelRegister do
      end
      
      it "should find models labeled with any label in" do
+       p @register.models.with_any_labels(["bread", "whatever"])
        @register.models.with_any_labels(["bread", "whatever"]).should == [@m1, @m2]
+     end
+   end
+   
+   context "adding and removing label direct" do
+     before(:each) do
+       @register = Register.create
+       @m1 = M2.new(:register => @register, :labels => "bread, juice, sugar, black")
+       @m1.save
+     end
+     context "for a model" do
+       it "should add one label" do
+         @m1.add_labels("grey")
+         @m1.save
+         @m1.register.labels_weight("grey").should == 1
+         @m1.labels.should == "bread,juice,sugar,black,grey"
+       end
+       
+       it "should add multiple labels" do
+         @m1.add_labels(["orange", "cute"])
+         @m1.save
+         @m1.labels.should == "bread,juice,sugar,black,orange,cute"
+         @m1.register.labels_weight("orange").should == 1
+         @m1.register.labels_weight("cute").should == 1
+       end
+       
+       it "should ingnore existing labels" do
+          @m1.register.labels_weight("black").should == 1
+          @m1.add_labels("black")
+          @m1.save
+          @m1.register.labels_weight("black").should == 1
+          @m1.labels.should == "bread,juice,sugar,black"
+       end
+       
+       it "should remove a label" do
+          @m1.remove_labels("black")
+          @m1.labels.should == "bread,juice,sugar"
+          @m1.save
+          @m1.register.labels_weight("black").should == 0
+       end
+       
+       it "should remove multiple labels" do
+         @m1.remove_labels(["sugar", "black"])
+         @m1.save
+         @m1.register.labels_weight("sugar").should == 0
+         @m1.register.labels_weight("black").should == 0
+         
+         @m1.labels.should == "bread,juice"
+         
+       end   
+         
+       it "should ignore non exsisting labels" do
+         @m1.remove_labels("hello")
+         @m1.save
+         @m1.labels.should == "bread,juice,sugar,black"
+       end
+     end
+     
+     context "in a register" do
+       it "should add label to a register with count 0"
+       it "should remove a label from register and all models with that label"
+       it "should remove a label from register and destroy all models with it"
+       it "should update the color"
+       it "should return the label with colors and weight"
      end
    end
 end

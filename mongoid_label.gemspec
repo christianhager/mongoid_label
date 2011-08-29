@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 $:.push File.expand_path("../lib", __FILE__)
-require "mongoid_label/version"
+require "mongoid/version"
 
 Gem::Specification.new do |s|
   s.name        = "mongoid_label"
